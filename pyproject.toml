@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-healthcare-common"
+version = "0.1.0"
+description = "Shared runtime for healthcare-org Python services: HTTP, events, auth, tracing, DB, audit."
+requires-python = ">=3.11"
+dependencies = [
+  "flask>=3.0.0",
+  "requests>=2.31.0",
+  "psycopg[binary,pool]>=3.1.18",
+  "confluent-kafka>=2.3.0",
+  "PyJWT>=2.8.0",
+  "pyyaml>=6.0.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-mock>=3.12", "responses>=0.24"]
+
+[tool.setuptools.packages.find]
+include = ["healthcare_common*"]
