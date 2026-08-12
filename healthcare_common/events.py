@@ -55,6 +55,26 @@ def _brokers() -> str:
     return os.environ.get("KAFKA_BOOTSTRAP", "localhost:29092")
 
 
+def _kafka_auth_config() -> dict:
+    """Add SASL_SSL config when KAFKA_SASL_USERNAME is present.
+
+    Set to talk to Upstash Kafka / Confluent Cloud / anything using SASL:
+      KAFKA_BOOTSTRAP=cluster.upstash.io:9092
+      KAFKA_SASL_USERNAME=...
+      KAFKA_SASL_PASSWORD=...
+      KAFKA_SASL_MECHANISM=SCRAM-SHA-256   # optional; SCRAM-SHA-256 default
+    """
+    user = os.environ.get("KAFKA_SASL_USERNAME")
+    if not user:
+        return {}
+    return {
+        "security.protocol": "SASL_SSL",
+        "sasl.mechanisms": os.environ.get("KAFKA_SASL_MECHANISM", "SCRAM-SHA-256"),
+        "sasl.username": user,
+        "sasl.password": os.environ.get("KAFKA_SASL_PASSWORD", ""),
+    }
+
+
 class EventBus:
     """One-per-service Kafka wrapper. Thread-safe for `publish`."""
 
@@ -67,6 +87,7 @@ class EventBus:
             "acks": "all",
             "linger.ms": 10,
             "retries": 5,
+            **_kafka_auth_config(),
         })
         self._handlers: dict[str, Handler] = {}
         self._consumer_thread: Optional[threading.Thread] = None
@@ -142,6 +163,7 @@ class EventBus:
             "auto.offset.reset": "earliest",
             "enable.auto.commit": False,
             "max.poll.interval.ms": 300000,
+            **_kafka_auth_config(),
         })
         consumer.subscribe(list(self._handlers.keys()))
         log.info("%s: subscribed to %s", self.service_name, list(self._handlers.keys()))

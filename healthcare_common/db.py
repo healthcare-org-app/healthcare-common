@@ -64,8 +64,18 @@ class DBPool:
 
 
 def db_pool(dsn: Optional[str] = None) -> DBPool:
-    """Build a pool from the given DSN or DATABASE_URL."""
+    """Build a pool from the given DSN or DATABASE_URL.
+
+    In dev each service owns its own database (`postgresql://.../patients`).
+    On single-database platforms (Render's managed Postgres, Supabase, …) set
+    HEALTHCARE_DB_NAME to the schema you want as the search_path — the pool
+    will point at that schema on connect.
+    """
     dsn = dsn or os.environ.get("DATABASE_URL")
     if not dsn:
         raise RuntimeError("DATABASE_URL is not set")
+    schema = os.environ.get("HEALTHCARE_DB_NAME")
+    if schema:
+        sep = "&" if "?" in dsn else "?"
+        dsn = f"{dsn}{sep}options=-c%20search_path%3D{schema}"
     return DBPool(dsn)

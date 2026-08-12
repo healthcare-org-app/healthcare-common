@@ -69,6 +69,49 @@ def _load_service_yaml(service_dir: Path, service_name: str) -> dict:
     return {"name": service_name}
 
 
+def _install_cors(app: Flask) -> None:
+    """Attach CORS headers so browser clients (the SPA) can call the API.
+
+    Origins allowlist is driven by CORS_ALLOWED_ORIGINS — a comma-separated list
+    of exact origins, or the single value "*" to allow any (useful for dev).
+    Defaults to "*" so local dev keeps working with no config.
+    """
+    raw = os.environ.get("CORS_ALLOWED_ORIGINS", "*")
+    allowed = [o.strip() for o in raw.split(",") if o.strip()]
+    allow_any = allowed == ["*"]
+
+    @app.after_request
+    def _cors(resp):
+        origin = None
+        try:
+            from flask import request
+
+            origin = request.headers.get("Origin")
+        except Exception:
+            pass
+        if origin and (allow_any or origin in allowed):
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Vary"] = "Origin"
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
+            resp.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, X-Request-ID"
+            )
+            resp.headers["Access-Control-Allow-Methods"] = (
+                "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            )
+            resp.headers["Access-Control-Max-Age"] = "600"
+        return resp
+
+    # Answer preflight for every path without needing per-route OPTIONS handlers.
+    @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
+    @app.route("/<path:path>", methods=["OPTIONS"])
+    def _preflight(path: str):  # noqa: ARG001
+        from flask import make_response
+
+        resp = make_response("", 204)
+        return resp
+
+
 def _register_health(app: Flask, bus: EventBus, db: DBPool, name: str) -> None:
     @app.get("/health")
     def _health():
@@ -100,6 +143,7 @@ def create_service(name: str, *, service_dir: Optional[Path] = None,
 
     app = Flask(name)
     request_id_middleware(app)
+    _install_cors(app)
 
     bus = EventBus(service_name=name)
     db = db_pool()
